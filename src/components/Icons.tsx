@@ -26,3 +26,4 @@ export const IconReset = (p: P) => <svg {...base(p)}><path d="M3 12a9 9 0 1 0 3-
 export const IconX = (p: P) => <svg {...base(p)}><path d="M18 6 6 18M6 6l12 12" /></svg>;
 export const IconChevron = (p: P) => <svg {...base(p)}><path d="m6 15 6-6 6 6" /></svg>;
 export const IconSliders = (p: P) => <svg {...base(p)}><path d="M4 6h10m4 0h2M4 12h4m4 0h8M4 18h12m4 0h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>;
+export const IconEdit = (p: P) => <svg {...base(p)}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>;
