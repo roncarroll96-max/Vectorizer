@@ -1,7 +1,9 @@
 # Vectorize: raster → SVG, entirely in the browser
 
-Vectorize converts PNG, JPG, BMP and WebP images into clean, compact, scalable SVG.
-All processing runs client-side in a Web Worker. Nothing is uploaded and there is no server.
+Vectorize converts PNG, JPG, BMP and WebP images into clean, compact, scalable SVG, and includes a built-in SVG editor for touching up the result (or drawing from scratch).
+Everything runs client-side. Nothing is uploaded and there is no server.
+
+The app has two tabs: **Trace** (image → SVG) and **Edit** (SVG editor). *Open in editor* on the Trace tab sends the current result straight to the editor.
 
 - **Three modes:** Black & white (threshold + outline trace), Color (quantize to 2–64 colors and stack layers back to front), and Line art (true centerline strokes for sketches).
 - **Full pipeline:** blur, denoise, contrast, background removal → Otsu / k-means++ / median cut → contour tracing with holes → Ramer–Douglas–Peucker → Schneider Bézier fitting with corner detection → speck removal → compact SVG.
@@ -9,6 +11,20 @@ All processing runs client-side in a Web Worker. Nothing is uploaded and there i
 - **Editable palette:** recolor or remove any layer.
 - **Export:** download SVG, copy SVG code, or export a PNG at 0.5×–8×. Shows path count, node count and file size.
 - Light and dark mode, responsive (sidebar on desktop, bottom sheet on mobile), keyboard accessible.
+
+## The SVG editor (Edit tab)
+
+- **Tools:** select (move, resize, rotate), node editing, pen (click for corners, drag for curves), rectangle, ellipse, line, polygon, text, hand.
+- **Node editing:** drag anchors and Bézier handles, marquee-select nodes, double-click the path to add a node, double-click a node to switch between corner and smooth, Alt-drag a handle to break it, Delete removes nodes. Rectangles, ellipses and lines become paths automatically when you start editing their nodes.
+- **Snapping and guides:** moving, resizing and drawing snap to other objects' edges and centres and to the canvas, with pink guide lines. Hold Ctrl/⌘ to skip snapping, or turn it off in the toolbar.
+- **Styling:** fill, stroke, stroke width, opacity, caps and joins, even-odd fill, corner radius, and text font, size, weight and alignment. Swatches show the document's own colors: click sets the fill, Shift+click sets the stroke.
+- **Layers:** a tree of every object (front first). Hide, lock, rename, drag to reorder, or drop onto a group. Double-click a group on the canvas to edit inside it.
+- **Arrange:** front/back ordering, group and ungroup, align (to the selection, or to the canvas for one object), flip, rotate 90°, duplicate, convert to path, and exact X/Y/W/H/rotation fields.
+- **History and clipboard:** undo/redo (200 steps; a whole drag counts as one step). Copy, cut and paste work inside the editor and with other apps, as SVG markup.
+- **Files:** open or drop any SVG, save SVG (Ctrl/⌘+S), copy the code, or export PNG at 1×–8×. Dropping a PNG/JPG onto the editor sends it to the tracer.
+- Press **?** in the editor for the full keyboard shortcut list.
+
+Imported SVGs are converted into the editor's model: inherited styles are applied to each shape, transforms and the viewBox are kept, and arcs and quadratic curves become cubic Béziers. Gradients are replaced by their first color, and clipping paths, masks, `<use>` and `<image>` are skipped. The editor lists anything it simplified after opening a file.
 
 ## Quick start
 
@@ -52,8 +68,16 @@ src/
 ├─ worker/               Web Worker entry + message protocol
 ├─ hooks/                useTracer (worker lifecycle + cancellation), useDebounced, useTheme
 ├─ lib/                  image decoding/downscaling, exporters (SVG/PNG/clipboard), sample image
-└─ components/           DropZone, Preview + Viewport (synced zoom/pan), Controls, Palette, ExportPanel
+├─ components/           DropZone, Preview + Viewport (synced zoom/pan), Controls, Palette, ExportPanel
+└─ editor/               the SVG editor (lazy-loaded when the Edit tab opens)
+   ├─ model/             pure TS: document types, affine matrices, path parsing/serialising and node
+   │                     operations, bounds, tree operations (group/reorder/move), snapping, SVG import/export
+   ├─ store.ts           editor state + undo/redo (immutable snapshots; gestures and rapid edits coalesce)
+   ├─ tools/             select, node, pen, draw (rect/ellipse/line/polygon), text — each maps pointer events to edits
+   └─ components/        Canvas (zoom/pan/pinch), Overlay (handles, nodes, guides), Inspector, Layers, text editor
 ```
+
+The editor keeps a document tree of shapes, each with a style and an affine transform. Moves and resizes are folded into the shape's coordinates wherever that's exact, so stroke widths stay constant and node editing works in plain coordinates. Rotated rectangles, ellipses, text and groups keep a transform matrix. History stores immutable snapshots that share unchanged branches, so undo is reliable and cheap.
 
 ### Data flow
 
@@ -80,11 +104,14 @@ src/
 
 ## Tests
 
-`npm test` runs 35 Vitest tests:
+`npm test` runs 80 Vitest tests:
 
 - **simplify.test.ts:** RDP tolerance guarantees, staircases, closed rings and corners, 200k-point input.
 - **bezier.test.ts:** recovering a known cubic, semicircle error bounds, G1 continuity, corners vs curves, chamfer collapsing.
 - **svg.test.ts** (jsdom): path-data syntax and precision, drift-free rounding, `s`/`m`/`z` usage, well-formed XML via `DOMParser`, viewBox/size, hex fills, palette overrides and merging, line-art stroke output.
+- **editor/path.test.ts:** matrices, parsing every path command (arcs, quadratics, compact flags), lossless parse → serialise round trip, splitting segments without changing the shape, node operations.
+- **editor/doc.test.ts** (jsdom): baking transforms, bounds, reorder, group/ungroup and moving into rotated groups without visual change, snapping/alignment, SVG import (style inheritance, viewBox, gradients, invalid files, Vectorizer output) and export round trips.
+- **editor/store.test.ts:** undo/redo, one-step gestures, coalescing, group/align/duplicate/clipboard actions, group scopes, node deletion.
 - **synthetic.test.ts:** draws circles, squares, a ring and bitmap-font text, traces them, **parses the emitted path data back, rasterises it with even-odd, and compares it to the input** (over 97% pixel accuracy and zero uncovered pixels). Also checks holes, Otsu B&W, speck removal, curves vs corners, node count falling as Simplify rises, centerline tracing and background removal.
 
 ## Keyboard

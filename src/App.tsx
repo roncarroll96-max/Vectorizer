@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Settings } from './core/types';
 import { DEFAULT_SETTINGS, PRESETS, applyPreset } from './core/presets';
 import { buildSvg, type LayerOverride } from './core/svg';
@@ -23,7 +23,14 @@ import {
   IconChevron, IconColumns, IconMonitor, IconMoon, IconNodes, IconSlider, IconSliders, IconSun, IconUpload, IconX,
 } from './components/Icons';
 
+const EditorApp = lazy(() => import('./editor/components/EditorApp'));
+
+type Tab = 'trace' | 'edit';
+
 export default function App() {
+  const [tab, setTab] = useState<Tab>('trace');
+  const tabRef = useRef<Tab>('trace');
+  tabRef.current = tab;
   const theme = useTheme();
   const [source, setSource] = useState<LoadedImage | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -92,6 +99,7 @@ export default function App() {
   // Paste from clipboard anywhere on the page.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      if (tabRef.current !== 'trace') return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       const items = Array.from(e.clipboardData?.items ?? []);
@@ -111,11 +119,11 @@ export default function App() {
   useEffect(() => {
     let depth = 0;
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
-    const enter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDragging(true); } };
+    const enter = (e: DragEvent) => { if (tabRef.current === 'trace' && hasFiles(e)) { depth++; setDragging(true); } };
     const leave = (e: DragEvent) => { if (hasFiles(e) && --depth <= 0) { depth = 0; setDragging(false); } };
-    const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
+    const over = (e: DragEvent) => { if (tabRef.current === 'trace' && hasFiles(e)) e.preventDefault(); };
     const drop = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (tabRef.current !== 'trace' || !hasFiles(e)) return;
       e.preventDefault();
       depth = 0;
       setDragging(false);
@@ -136,7 +144,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setPicking(false); setSheetOpen(false); }
+      if (tabRef.current === 'trace' && e.key === 'Escape') { setPicking(false); setSheetOpen(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -170,6 +178,23 @@ export default function App() {
   };
 
   const fileBase = source ? baseName(source.name) : 'vector';
+
+  const openInEditor = async () => {
+    if (!built) return;
+    const { editorStore } = await import('./editor/store');
+    if (editorStore.getState().dirty && !window.confirm('Replace the drawing in the editor? Its unsaved changes will be lost.')) return;
+    try {
+      editorStore.loadSvg(built.svg, fileBase);
+      setTab('edit');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const traceFromEditor = useCallback((file: File) => {
+    setTab('trace');
+    handleFile(file);
+  }, [handleFile]);
   const proc = source ? processingSize(source, settings.fullResolution) : null;
   const canDownscale = !!source && Math.max(source.width, source.height) > MAX_PROCESS_DIM;
 
@@ -185,7 +210,15 @@ export default function App() {
           </span>
           <span className="brand-name">Vectorize</span>
         </div>
-        {source && (
+        <Segmented
+          label="Workspace"
+          hideLabel
+          className="workspace-tabs"
+          value={tab}
+          onChange={setTab}
+          options={[{ value: 'trace', label: 'Trace' }, { value: 'edit', label: 'Edit' }]}
+        />
+        {tab === 'trace' && source && (
           <p className="file-info" title={source.name}>
             <span className="file-name">{source.name}</span>
             <span className="muted">{source.width} × {source.height}px · {formatBytes(source.bytes)}</span>
@@ -193,7 +226,7 @@ export default function App() {
           </p>
         )}
         <div className="topbar-actions">
-          {source && (
+          {tab === 'trace' && source && (
             <>
               <Segmented
                 label="Comparison view"
@@ -234,14 +267,20 @@ export default function App() {
         />
       </header>
 
-      {(error || tracer.error) && (
+      {tab === 'edit' && (
+        <Suspense fallback={<div className="loading-veil" role="status">Loading editor…</div>}>
+          <EditorApp onImage={traceFromEditor} />
+        </Suspense>
+      )}
+
+      {tab === 'trace' && (error || tracer.error) && (
         <div className="error-banner" role="alert">
           <span>{error ?? tracer.error}</span>
           <button type="button" className="icon-btn" aria-label="Dismiss message" onClick={() => setError(null)}><IconX /></button>
         </div>
       )}
 
-      <main className={`workspace${source ? ' has-image' : ''}`}>
+      <main className={`workspace${source ? ' has-image' : ''}`} hidden={tab !== 'trace'}>
         <section className="stage" aria-label="Preview">
           {source && procImage ? (
             <Preview
@@ -313,6 +352,7 @@ export default function App() {
                 elapsedMs={result?.elapsedMs}
                 onDownloadSvg={() => built && downloadSvg(built.svg, `${fileBase}.svg`)}
                 onCopySvg={() => (built ? copyText(built.svg) : Promise.reject(new Error('Nothing to copy')))}
+                onEdit={openInEditor}
                 onExportPng={async (scale) => {
                   if (!built || !source) return;
                   const { width, height } = pngSize(source.width, source.height, scale);
@@ -324,7 +364,7 @@ export default function App() {
         </aside>
       </main>
 
-      {dragging && source && (
+      {tab === 'trace' && dragging && source && (
         <div className="drop-overlay" aria-hidden="true"><div>Drop to open a new image</div></div>
       )}
       <p className="sr-only" role="status" aria-live="polite">{statusText}</p>

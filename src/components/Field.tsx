@@ -93,13 +93,14 @@ interface SegmentedProps<T extends string> {
   options: { value: T; label: string; title?: string; icon?: ReactNode }[];
   onChange: (v: T) => void;
   hideLabel?: boolean;
+  className?: string;
 }
 
 /** Radio group styled as a segmented control (native radios ⇒ arrow-key navigation for free). */
-export function Segmented<T extends string>({ label, value, options, onChange, hideLabel }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ label, value, options, onChange, hideLabel, className }: SegmentedProps<T>) {
   const name = useId();
   return (
-    <fieldset className="segmented">
+    <fieldset className={`segmented${className ? ` ${className}` : ''}`}>
       <legend className={hideLabel ? 'sr-only' : undefined}>{label}</legend>
       <div className="segmented-track">
         {options.map((o) => (

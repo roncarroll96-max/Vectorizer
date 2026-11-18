@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { SvgStats } from '../core/svg';
 import { formatBytes, formatNumber } from '../lib/format';
 import { pngSize } from '../lib/exporters';
-import { IconCopy, IconDownload, IconImage } from './Icons';
+import { IconCopy, IconDownload, IconEdit, IconImage } from './Icons';
 
 interface Props {
   stats: SvgStats | null;
@@ -13,11 +13,12 @@ interface Props {
   onCopySvg: () => Promise<void>;
   onExportPng: (scale: number) => Promise<void>;
   elapsedMs?: number;
+  onEdit?: () => void;
 }
 
 const SCALES = [0.5, 1, 2, 4, 8];
 
-export function ExportPanel({ stats, outputWidth, outputHeight, disabled, onDownloadSvg, onCopySvg, onExportPng, elapsedMs }: Props) {
+export function ExportPanel({ stats, outputWidth, outputHeight, disabled, onDownloadSvg, onCopySvg, onExportPng, elapsedMs, onEdit }: Props) {
   const [scale, setScale] = useState(2);
   const [status, setStatus] = useState('');
   const png = pngSize(outputWidth, outputHeight, scale);
@@ -47,6 +48,13 @@ export function ExportPanel({ stats, outputWidth, outputHeight, disabled, onDown
           <IconCopy /> Copy code
         </button>
       </div>
+      {onEdit && (
+        <div className="export-row">
+          <button type="button" className="btn" disabled={disabled} onClick={onEdit}>
+            <IconEdit /> Open in editor
+          </button>
+        </div>
+      )}
       <div className="export-row png-row">
         <label className="inline-select">
           <span>PNG scale</span>
