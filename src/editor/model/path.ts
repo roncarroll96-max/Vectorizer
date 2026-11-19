@@ -1,6 +1,7 @@
 import type { Box, Mat, NodeKind, PathNode, SubPath, Vec } from './types';
 import { apply } from './matrix';
 import { loopsToPathData } from '../../core/svg';
+import { groupShapes } from '../../core/shapes';
 import type { PathLoop, Segment } from '../../core/types';
 
 const near = (a: Vec, b: Vec, eps = 1e-6) => Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps;
@@ -233,6 +234,28 @@ export function segmentsOf(s: SubPath): Seg[] {
     out.push({ a, b, cubic: a.out || b.in ? [a.p, a.out ?? a.p, b.in ?? b.p, b.p] : null });
   }
   return out;
+}
+
+/** A polygon approximating a subpath (curves sampled), for containment tests. */
+export function flattenSubpath(s: SubPath, steps = 8): Vec[] {
+  const out: Vec[] = [];
+  if (s.nodes.length) out.push(s.nodes[0].p);
+  for (const seg of segmentsOf(s)) {
+    if (seg.cubic) for (let k = 1; k <= steps; k++) out.push(cubicAt(seg.cubic, k / steps));
+    else out.push(seg.b.p);
+  }
+  if (s.closed && out.length > 1) out.pop(); // the last point repeats the first
+  return out;
+}
+
+/**
+ * Splits compound path data into its separate shapes: each outer boundary with
+ * the holes inside it (per the fill rule). Open subpaths stand alone. Returns
+ * the subpaths unchanged, regrouped, in their original order.
+ */
+export function splitSubpaths(subs: SubPath[], fillRule: 'nonzero' | 'evenodd'): SubPath[][] {
+  const groups = groupShapes(subs.map((s) => flattenSubpath(s)), { closed: subs.map((s) => s.closed), fillRule });
+  return groups.map((g) => g.slice().sort((a, b) => a - b).map((i) => subs[i]));
 }
 
 export function cubicAt(c: [Vec, Vec, Vec, Vec], t: number): Vec {

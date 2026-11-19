@@ -65,6 +65,8 @@ export interface Layer {
   color: string;
   /** Compact SVG path data for all loops of this layer. */
   d: string;
+  /** Path data per separate shape (an outer boundary with its holes, or one stroke). */
+  shapes: string[];
   pathCount: number;
   nodeCount: number;
   /** Anchor coordinates [x0, y0, x1, y1, …] for the node overlay. */

@@ -9,6 +9,7 @@ The app has two tabs: **Trace** (image → SVG) and **Edit** (SVG editor). *Open
 - **Full pipeline:** blur, denoise, contrast, background removal → Otsu / k-means++ / median cut → contour tracing with holes → Ramer–Douglas–Peucker → Schneider Bézier fitting with corner detection → speck removal → compact SVG.
 - **Live preview:** debounced re-tracing off the main thread with a progress bar. Side-by-side or before/after slider view, synced zoom and pan (wheel, drag, pinch, keyboard), and a path/node overlay.
 - **Editable palette:** recolor or remove any layer.
+- **Separate shapes:** each connected shape (with its holes) is written as its own `<path>`, grouped by color, so letters and blobs can be picked individually in any editor. Turn it off for one compound path per color and the smallest file.
 - **Export:** download SVG, copy SVG code, or export a PNG at 0.5×–8×. Shows path count, node count and file size.
 - Light and dark mode, responsive (sidebar on desktop, bottom sheet on mobile), keyboard accessible.
 
@@ -20,6 +21,7 @@ The app has two tabs: **Trace** (image → SVG) and **Edit** (SVG editor). *Open
 - **Styling:** fill, stroke, stroke width, opacity, caps and joins, even-odd fill, corner radius, and text font, size, weight and alignment. Swatches show the document's own colors: click sets the fill, Shift+click sets the stroke.
 - **Layers:** a tree of every object (front first). Hide, lock, rename, drag to reorder, or drop onto a group. Double-click a group on the canvas to edit inside it.
 - **Arrange:** front/back ordering, group and ungroup, align (to the selection, or to the canvas for one object), flip, rotate 90°, duplicate, convert to path, and exact X/Y/W/H/rotation fields.
+- **Split and combine:** *Split path* (Ctrl/⌘+Shift+K) breaks a compound path into one path per separate shape, keeping holes (the inside of an "O") with their shape and following the path's fill rule. *Combine* (Ctrl/⌘+K) merges the selected paths and shapes into one compound path with the topmost one's style.
 - **History and clipboard:** undo/redo (200 steps; a whole drag counts as one step). Copy, cut and paste work inside the editor and with other apps, as SVG markup.
 - **Files:** open or drop any SVG, save SVG (Ctrl/⌘+S), copy the code, or export PNG at 1×–8×. Dropping a PNG/JPG onto the editor sends it to the tracer.
 - Press **?** in the editor for the full keyboard shortcut list.

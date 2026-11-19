@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { EditorStore } from '../store';
 import { defaultStyle, makeRect, makeEllipse } from '../model/shapes';
 import { getShape } from '../model/doc';
+import { parsePathData } from '../model/path';
+import type { PathShape } from '../model/types';
 import { shapeBounds } from '../model/geometry';
 
 let store: EditorStore;
@@ -140,5 +142,57 @@ describe('editing actions', () => {
     store.set({ nodeSelection: ['0:0', '0:1'] });
     store.deleteSelectedNodes();
     expect(store.getState().doc.shapes).toHaveLength(0);
+  });
+});
+
+describe('split and combine paths', () => {
+  // Two "O"s (outer + hole each) and a lone square, as one compound path.
+  const D = 'M0 0H10V10H0Z M2 2V8H8V2Z M20 0H30V10H20Z M22 2V8H28V2Z M40 0H50V10H40Z';
+  const compound = (fillRule: 'nonzero' | 'evenodd' = 'evenodd'): PathShape => ({
+    id: 'p1', name: 'Path', type: 'path', transform: [1, 0, 0, 1, 0, 0],
+    style: defaultStyle({ fill: '#000000', fillRule }), subpaths: parsePathData(D),
+  });
+
+  it('splits a compound path into separate shapes, keeping holes with their shape', () => {
+    store.addShapes([rect(100, 100), compound(), rect(200, 100)]);
+    store.select(['p1']);
+    store.splitPaths();
+    const { doc, selection } = store.getState();
+    expect(selection).toHaveLength(3);
+    expect(doc.shapes).toHaveLength(5);
+    // pieces take the original's place in the stacking order
+    expect(doc.shapes.slice(1, 4).map((s) => s.id)).toEqual(selection);
+    const pieces = selection.map((id) => getShape(doc, id) as PathShape);
+    expect(pieces.map((p) => p.subpaths.length)).toEqual([2, 2, 1]);
+    expect(pieces.every((p) => p.style.fill === '#000000' && p.style.fillRule === 'evenodd')).toBe(true);
+    store.undo();
+    expect(store.getState().doc.shapes).toHaveLength(3);
+  });
+
+  it('does nothing for a path with a single shape', () => {
+    store.addShapes([{ ...compound(), subpaths: parsePathData('M0 0H10V10H0Z M2 2V8H8V2Z') }]);
+    store.select(['p1']);
+    const before = store.getState().doc;
+    store.splitPaths();
+    expect(store.getState().doc).toBe(before);
+  });
+
+  it('combines shapes into one compound path in place, then splits back', () => {
+    const a = rect(0, 0, '#ff0000');
+    const b = makeEllipse(200, 50, 20, 20, defaultStyle({ fill: '#00ff00' }));
+    store.addShapes([a, b]);
+    store.select([a.id, b.id]);
+    const boundsBefore = store.selectionBounds();
+    store.combinePaths();
+    const { doc, selection } = store.getState();
+    expect(doc.shapes).toHaveLength(1);
+    expect(selection).toEqual([b.id]);
+    const p = doc.shapes[0] as PathShape;
+    expect(p.type).toBe('path');
+    expect(p.subpaths).toHaveLength(2);
+    expect(p.style.fill).toBe('#00ff00'); // topmost shape's style
+    expect(store.selectionBounds()).toEqual(boundsBefore);
+    store.splitPaths();
+    expect(store.getState().doc.shapes).toHaveLength(2);
   });
 });

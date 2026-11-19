@@ -142,6 +142,8 @@ export default function EditorApp({ onImage }: Props) {
         else if (k === 'd') editorStore.duplicate();
         else if (k === 'g' && e.shiftKey) editorStore.ungroup();
         else if (k === 'g') editorStore.group();
+        else if (k === 'k' && e.shiftKey) editorStore.splitPaths();
+        else if (k === 'k') editorStore.combinePaths();
         else if (k === 'a') editorStore.selectAll();
         else if (e.key === ']') editorStore.reorder('front');
         else if (e.key === '[') editorStore.reorder('back');

@@ -36,6 +36,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, LayerOverride>>({});
+  // Output-only option: toggling it rebuilds the SVG without re-tracing.
+  const [separateShapes, setSeparateShapes] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [showOutlines, setShowOutlines] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -69,7 +71,10 @@ export default function App() {
     });
   }, [result]);
 
-  const built = useMemo(() => (result ? buildSvg(result, overrides) : null), [result, overrides]);
+  const built = useMemo(
+    () => (result ? buildSvg(result, overrides, { separateShapes }) : null),
+    [result, overrides, separateShapes],
+  );
 
   const handleFile = useCallback(async (file: File | Blob, name?: string) => {
     setError(null);
@@ -329,6 +334,8 @@ export default function App() {
               thresholdUsed={result?.thresholdUsed ?? null}
               canDownscale={canDownscale}
               processingLabel={proc ? `Currently ${proc.width} × ${proc.height}` : ''}
+              separateShapes={separateShapes}
+              onSeparateShapes={setSeparateShapes}
             />
             <Section title="Palette">
               <Palette

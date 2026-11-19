@@ -1,16 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import type { Box, Doc, Mat, PathNode, Shape, Style, Vec } from './model/types';
+import type { Box, Doc, Mat, PathNode, PathShape, Shape, Style, SubPath, Vec } from './model/types';
 import {
-  chainTo, duplicateShapes, getShape, groupShapes, insertShapes, parentIdOf, parentMatrix, removeShapes, reorder,
+  allShapes, chainTo, duplicateShapes, getShape, groupShapes, insertShapes, parentIdOf, parentMatrix, removeShapes, reorder,
   siblings, ungroupShape, updateShapes, type ReorderOp,
 } from './model/doc';
 import { shapeBounds, unionBoxes } from './model/geometry';
 import { alignOffset, type AlignOp, type Guide } from './model/snap';
-import { bake, cloneShape, emptyDoc, toPath, transformShape, translateShape } from './model/shapes';
+import { bake, cloneShape, emptyDoc, newId, toPath, transformShape, translateShape } from './model/shapes';
 import { invert, mul, rotateAbout, scaleAbout, translate } from './model/matrix';
 import { importSvg } from './model/svgImport';
 import { exportSvg, shapesToSvg } from './model/svgExport';
-import { deleteNodes, nodeKey, setNodeKind } from './model/path';
+import { cloneSubpaths, deleteNodes, mapSubpaths, nodeKey, setNodeKind, splitSubpaths } from './model/path';
 
 export type ToolId = 'select' | 'node' | 'pen' | 'rect' | 'ellipse' | 'line' | 'polygon' | 'text' | 'hand';
 
@@ -301,6 +301,58 @@ export class EditorStore {
     const { selection, doc } = this.state;
     const next = updateShapes(doc, selection, (s) => toPath(s));
     this.commit(next);
+  }
+
+  /**
+   * Breaks each selected compound path into one path per separate shape (an
+   * outer boundary with its holes). Style, transform and stacking position are
+   * kept; the pieces are selected afterwards.
+   */
+  splitPaths() {
+    let doc = this.state.doc;
+    const selection: string[] = [];
+    let split = 0;
+    for (const id of this.state.selection) {
+      const s = getShape(doc, id);
+      const parts = s?.type === 'path' ? splitSubpaths(s.subpaths, s.style.fillRule) : [];
+      if (!s || parts.length < 2) { selection.push(id); continue; }
+      const parent = parentIdOf(doc, id);
+      const idx = siblings(doc, parent).findIndex((x) => x.id === id);
+      const pieces: PathShape[] = parts.map((subs, i) => ({
+        ...(s as PathShape), id: newId(), name: `${s.name} ${i + 1}`, subpaths: cloneSubpaths(subs),
+      }));
+      doc = insertShapes(removeShapes(doc, [id]), parent, pieces, idx);
+      selection.push(...pieces.map((p) => p.id));
+      split++;
+    }
+    if (!split) { this.flash('Nothing to split: select a path made of several separate shapes.'); return; }
+    this.commit(doc, { selection, nodeSelection: [] });
+  }
+
+  /**
+   * Combines the selected paths (and rectangles, ellipses, lines) into one
+   * compound path. The result takes the topmost shape's style and place in the
+   * stacking order; geometry from other groups or transforms is kept in place.
+   */
+  combinePaths() {
+    const { doc } = this.state;
+    const sel = new Set(this.state.selection);
+    // Document (paint) order, so "topmost" is well defined across groups.
+    const members = allShapes(doc.shapes).filter((s) => sel.has(s.id) && s.type !== 'group' && s.type !== 'text');
+    if (members.length < 2) { this.flash('Select two or more paths or shapes to combine.'); return; }
+    const top = members[members.length - 1];
+    const topPath = toPath(top) as PathShape;
+    const toTopLocal = invert(mul(parentMatrix(doc, top.id), topPath.transform));
+    const subpaths: SubPath[] = [];
+    for (const s of members) {
+      const p = (s.id === top.id ? topPath : toPath(s)) as PathShape;
+      const world = mul(parentMatrix(doc, s.id), p.transform);
+      subpaths.push(...mapSubpaths(p.subpaths, mul(toTopLocal, world)));
+    }
+    const combined: PathShape = { ...topPath, subpaths };
+    let next = removeShapes(doc, members.filter((s) => s.id !== top.id).map((s) => s.id));
+    next = updateShapes(next, [top.id], () => combined);
+    this.commit(next, { selection: [top.id], nodeSelection: [] });
   }
 
   /** Style update. Fill/stroke changes on groups apply to all descendants. */
