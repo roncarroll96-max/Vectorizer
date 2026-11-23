@@ -19,6 +19,7 @@ import { Controls } from './components/Controls';
 import { Palette } from './components/Palette';
 import { ExportPanel } from './components/ExportPanel';
 import { Section, Segmented } from './components/Field';
+import { VersionBadge } from './components/VersionBadge';
 import {
   IconChevron, IconColumns, IconMonitor, IconMoon, IconNodes, IconSlider, IconSliders, IconSun, IconUpload, IconX,
 } from './components/Icons';
@@ -214,6 +215,7 @@ export default function App() {
             <svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="var(--accent)" /><path d="M7 23 16 7l9 16" fill="none" stroke="#fff" strokeWidth="3" strokeLinejoin="round" /><circle cx="16" cy="7" r="2.5" fill="#fff" /></svg>
           </span>
           <span className="brand-name">Vectorize</span>
+          <VersionBadge />
         </div>
         <Segmented
           label="Workspace"
