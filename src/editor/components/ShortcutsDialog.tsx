@@ -6,7 +6,7 @@ const MOD = isMac ? '⌘' : 'Ctrl';
 const GROUPS: [string, [string, string][]][] = [
   ['Tools', [['V', 'Select'], ['A', 'Edit nodes'], ['P', 'Pen'], ['R', 'Rectangle'], ['E', 'Ellipse'], ['L', 'Line'], ['Y', 'Polygon'], ['T', 'Text'], ['H / hold Space', 'Pan']]],
   ['Edit', [[`${MOD}+Z`, 'Undo'], [`${MOD}+Shift+Z`, 'Redo'], [`${MOD}+C / X / V`, 'Copy / cut / paste'], [`${MOD}+D`, 'Duplicate'], ['Delete', 'Delete'], [`${MOD}+A`, 'Select all'], ['Arrows', 'Nudge 1px (Shift: 10px)'], ['Esc', 'Deselect / leave group']]],
-  ['Arrange', [[`${MOD}+G`, 'Group'], [`${MOD}+Shift+G`, 'Ungroup'], ['] / [', 'Forward / backward'], [`${MOD}+] / ${MOD}+[`, 'To front / back']]],
+  ['Arrange', [[`${MOD}+G`, 'Group'], [`${MOD}+Shift+G`, 'Ungroup'], [`${MOD}+K`, 'Combine paths'], [`${MOD}+Shift+K`, 'Split path'], ['] / [', 'Forward / backward'], [`${MOD}+] / ${MOD}+[`, 'To front / back']]],
   ['View', [['Scroll', 'Pan'], [`${MOD}+scroll / pinch`, 'Zoom'], ['+ / −', 'Zoom in / out'], ['0', 'Fit to screen'], ['1', '100%']]],
   ['While dragging', [['Shift', 'Constrain (axis, square, 15°, 45°)'], ['Alt', 'Duplicate (move) · from center (resize/draw)'], [MOD, 'Disable snapping']]],
   ['Nodes', [['Double-click path', 'Add node'], ['Double-click node', 'Toggle smooth / corner'], ['Alt+drag handle', 'Break handles'], ['Pen: click / drag', 'Corner / curve node'], ['Pen: Enter, Esc', 'Finish path'], ['Pen: click first node', 'Close path']]],

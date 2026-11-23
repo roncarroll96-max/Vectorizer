@@ -6,7 +6,7 @@ import { TYPE_LABEL } from '../model/shapes';
 import { ColorField, IconButton, NumField, PanelSection } from './Fields';
 import {
   IAlignB, IAlignCH, IAlignCV, IAlignL, IAlignR, IAlignT, IBack, IDown, IDuplicate, IFlipH, IFlipV, IFront, IGroup,
-  IRotL, IRotR, IToPath, ITrash, IUngroup, IUp,
+  ICombine, IRotL, IRotR, ISplit, IToPath, ITrash, IUngroup, IUp,
 } from './Icons';
 import { rotateAbout } from '../model/matrix';
 
@@ -181,6 +181,8 @@ function SelectionPanel() {
   const hasGroup = shapes.some((s) => s.type === 'group');
   const canPath = shapes.some((s) => s.type === 'rect' || s.type === 'ellipse' || s.type === 'line');
   const isPath = shapes.some((s) => s.type === 'path');
+  const canSplit = shapes.some((s) => s.type === 'path' && s.subpaths.length > 1);
+  const canCombine = shapes.filter((s) => s.type !== 'group' && s.type !== 'text').length > 1;
   const rotation = single && single.type !== 'path' && single.type !== 'line' ? rotationOf(single.transform) : null;
   const setStyle = (patch: Partial<Style>, live?: boolean) => editorStore.setStyle(patch, live ? Object.keys(patch)[0] : undefined);
 
@@ -280,6 +282,8 @@ function SelectionPanel() {
         <div className="ed-btn-row">
           <IconButton label="Duplicate (Ctrl+D)" onClick={() => editorStore.duplicate()}><IDuplicate /></IconButton>
           <IconButton label="Convert to path" disabled={!canPath} onClick={() => editorStore.convertToPath()}><IToPath /></IconButton>
+          <IconButton label="Split path into separate shapes (Ctrl+Shift+K)" disabled={!canSplit} onClick={() => editorStore.splitPaths()}><ISplit /></IconButton>
+          <IconButton label="Combine into one path (Ctrl+K)" disabled={!canCombine} onClick={() => editorStore.combinePaths()}><ICombine /></IconButton>
           <IconButton label="Delete (Del)" className="is-danger" onClick={() => editorStore.deleteSelection()}><ITrash /></IconButton>
         </div>
       </PanelSection>

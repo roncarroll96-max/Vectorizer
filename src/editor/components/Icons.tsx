@@ -34,6 +34,8 @@ export const ITrash = (p: P) => <svg {...b(p)}><path d="M4 7h16M10 11v6M14 11v6M
 export const IDuplicate = (p: P) => <svg {...b(p)}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></svg>;
 export const IGroup = (p: P) => <svg {...b(p)}><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3 2.5" /><rect x="7" y="7" width="6" height="6" /><rect x="11" y="11" width="6" height="6" /></svg>;
 export const IUngroup = (p: P) => <svg {...b(p)}><rect x="3" y="3" width="8" height="8" /><rect x="13" y="13" width="8" height="8" /></svg>;
+export const ISplit = (p: P) => <svg {...b(p)}><path d="M3 9a5 5 0 0 1 8-4M3 15a5 5 0 0 0 8 4" /><path d="M21 9a5 5 0 0 0-8-4M21 15a5 5 0 0 1-8 4" strokeDasharray="2.5 2" /><path d="M12 3v18" /></svg>;
+export const ICombine = (p: P) => <svg {...b(p)}><rect x="3" y="3" width="11" height="11" rx="2" /><rect x="10" y="10" width="11" height="11" rx="2" fill="currentColor" fillOpacity=".35" /></svg>;
 export const IToPath = (p: P) => <svg {...b(p)}><path d="M4 18C8 6 16 18 20 6" /><circle cx="4" cy="18" r="1.6" fill="currentColor" /><circle cx="20" cy="6" r="1.6" fill="currentColor" /></svg>;
 export const IFront = (p: P) => <svg {...b(p)}><rect x="9" y="9" width="11" height="11" fill="currentColor" fillOpacity=".35" /><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4" /></svg>;
 export const IBack = (p: P) => <svg {...b(p)}><rect x="4" y="4" width="11" height="11" fill="currentColor" fillOpacity=".35" /><path d="M15 9h4a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-4" /></svg>;

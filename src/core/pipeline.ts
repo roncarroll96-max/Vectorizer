@@ -7,6 +7,7 @@ import { edgeMidpoints, traceContours } from './contour';
 import { rdp, rdpClosed } from './simplify';
 import { smoothPolygon } from './bezier';
 import { loopNodes, loopsToPathData } from './svg';
+import { groupShapes } from './shapes';
 import { polygonArea, polylineLength } from './geometry';
 import { distanceTransform, removeStaircase, traceSkeleton, zhangSuen } from './centerline';
 import { rgbToHex, luma, type RGB } from './color';
@@ -84,18 +85,19 @@ export function traceImage(src: RGBAImage, s: Settings, opts: TraceOptions = {})
       const l = labels[i];
       mask[i] = l >= 0 && rank[l] >= k ? 1 : 0;
     }
-    const loops = vectorizeMask(mask, w, h, s);
-    layers.push(makeLayer(rgbToHex(palette[order[k]]), loops, counts[order[k]], s.precision));
+    const { loops, groups } = vectorizeMask(mask, w, h, s);
+    layers.push(makeLayer(rgbToHex(palette[order[k]]), loops, groups, counts[order[k]], s.precision));
   }
   progress('Done', 1);
   return { ...base, layers, strokeWidth: 0, thresholdUsed, elapsedMs: now() - t0 };
 }
 
-function makeLayer(color: string, loops: PathLoop[], pixelCount: number, precision: 1 | 2): Layer {
+function makeLayer(color: string, loops: PathLoop[], groups: number[][], pixelCount: number, precision: 1 | 2): Layer {
   const nodes = loopNodes(loops);
   return {
     color,
     d: loopsToPathData(loops, precision),
+    shapes: groups.map((g) => loopsToPathData(g.map((i) => loops[i]), precision)),
     pathCount: loops.length,
     nodeCount: nodes.length / 2,
     nodes,
@@ -104,18 +106,26 @@ function makeLayer(color: string, loops: PathLoop[], pixelCount: number, precisi
   };
 }
 
-/** Traces, filters, simplifies and smooths every boundary of one mask. */
-export function vectorizeMask(mask: Uint8Array, w: number, h: number, s: Settings): PathLoop[] {
+/**
+ * Traces, filters, simplifies and smooths every boundary of one mask. `groups`
+ * splits the loops into separate shapes (each outer boundary with its holes).
+ */
+export function vectorizeMask(mask: Uint8Array, w: number, h: number, s: Settings): { loops: PathLoop[]; groups: number[][] } {
   const contours = traceContours(mask, w, h);
   const loops: PathLoop[] = [];
+  const polys: Point[][] = [];
+  const holes: boolean[] = [];
   for (const c of contours) {
-    if (Math.abs(polygonArea(c)) < Math.max(1, s.minSpeck)) continue;
+    const area = polygonArea(c);
+    if (Math.abs(area) < Math.max(1, s.minSpeck)) continue;
     const simplified = rdpClosed(edgeMidpoints(c), s.simplify);
     if (simplified.length < 3) continue;
     const { start, segs } = smoothPolygon(simplified, true, { smoothness: s.smoothness, cornerAngle: s.cornerAngle });
     loops.push({ start, segs, closed: true });
+    polys.push(simplified);
+    holes.push(area < 0); // outer boundaries run clockwise (positive area), holes counter-clockwise
   }
-  return loops;
+  return { loops, groups: groupShapes(polys, { holes }) };
 }
 
 function traceLineArt(image: RGBAImage, s: Settings, progress: ProgressFn) {
@@ -163,6 +173,7 @@ function traceLineArt(image: RGBAImage, s: Settings, progress: ProgressFn) {
     loops.push({ start, segs, closed: pl.closed });
   }
   progress('Writing SVG', 0.95);
-  const layer = makeLayer('#000000', loops, inkPixels, s.precision);
+  // Every stroke stands alone; strokes never have holes.
+  const layer = makeLayer('#000000', loops, loops.map((_, i) => [i]), inkPixels, s.precision);
   return { layers: [layer], strokeWidth, thresholdUsed };
 }

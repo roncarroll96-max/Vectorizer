@@ -117,8 +117,26 @@ export interface SvgStats {
  * beneath it is redundant and is dropped — the "merge paths of the same color"
  * step without breaking evenodd semantics.
  */
-export function buildSvg(result: TraceResult, overrides: Record<string, LayerOverride> = {}): { svg: string; stats: SvgStats } {
+export interface BuildOptions {
+  /**
+   * Write each separate shape (an outer boundary with its holes, or one stroke)
+   * as its own <path>, grouped per color, instead of one compound path per color.
+   */
+  separateShapes?: boolean;
+}
+
+export function buildSvg(
+  result: TraceResult,
+  overrides: Record<string, LayerOverride> = {},
+  opts: BuildOptions = {},
+): { svg: string; stats: SvgStats } {
   const { width, height, outputWidth, outputHeight } = result;
+  // `paint` is a presentation attribute such as fill="#000"; with several shapes it moves onto a <g>.
+  const emit = (paint: string, layer: TraceResult['layers'][number]) => {
+    const shapes = opts.separateShapes ? layer.shapes.filter(Boolean) : [];
+    if (shapes.length > 1) parts.push(`<g ${paint}>${shapes.map((d) => `<path d="${d}"/>`).join('')}</g>`);
+    else parts.push(`<path ${paint} d="${layer.d}"/>`);
+  };
   const head = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${outputWidth}" height="${outputHeight}"`;
   const parts: string[] = [];
   let paths = 0, nodes = 0, layers = 0;
@@ -126,7 +144,7 @@ export function buildSvg(result: TraceResult, overrides: Record<string, LayerOve
     for (const layer of result.layers) {
       const o = overrides[layer.color] ?? {};
       if (o.hidden || !layer.d) continue;
-      parts.push(`<path stroke="${shortHex(o.color ?? layer.color)}" d="${layer.d}"/>`);
+      emit(`stroke="${shortHex(o.color ?? layer.color)}"`, layer);
       paths += layer.pathCount; nodes += layer.nodeCount; layers++;
     }
     const sw = Math.round(result.strokeWidth * 100) / 100;
@@ -140,7 +158,7 @@ export function buildSvg(result: TraceResult, overrides: Record<string, LayerOve
     const fill = shortHex(o.color ?? layer.color);
     if (fill === prevFill) continue;
     prevFill = fill;
-    parts.push(`<path fill="${fill}" d="${layer.d}"/>`);
+    emit(`fill="${fill}"`, layer);
     paths += layer.pathCount; nodes += layer.nodeCount; layers++;
   }
   const svg = `${head} fill-rule="evenodd">${parts.join('')}</svg>`;

@@ -15,6 +15,8 @@ interface Props {
   thresholdUsed: number | null;
   canDownscale: boolean;
   processingLabel: string;
+  separateShapes: boolean;
+  onSeparateShapes: (v: boolean) => void;
 }
 
 const MODES: { value: Mode; label: string; title: string }[] = [
@@ -24,7 +26,7 @@ const MODES: { value: Mode; label: string; title: string }[] = [
 ];
 
 export function Controls(props: Props) {
-  const { settings: s, onChange, onPreset, activePreset, onReset, picking, onTogglePick, detectedBackground, thresholdUsed, canDownscale, processingLabel } = props;
+  const { settings: s, onChange, onPreset, activePreset, onReset, picking, onTogglePick, detectedBackground, thresholdUsed, canDownscale, processingLabel, separateShapes, onSeparateShapes } = props;
   const px = (v: number) => `${v.toFixed(1)} px`;
   const bgShown = s.bgColor ?? detectedBackground;
 
@@ -117,6 +119,14 @@ export function Controls(props: Props) {
           value={String(s.precision) as '1' | '2'}
           options={[{ value: '1', label: '1 decimal' }, { value: '2', label: '2 decimals' }]}
           onChange={(v) => onChange({ precision: Number(v) as 1 | 2 })}
+        />
+        <ToggleField
+          label="Separate shapes"
+          checked={separateShapes}
+          onChange={onSeparateShapes}
+          hint={separateShapes
+            ? 'Each connected shape is its own path, grouped by color. Holes stay with their shape.'
+            : 'One compound path per color: the smallest file.'}
         />
         {canDownscale && (
           <ToggleField
