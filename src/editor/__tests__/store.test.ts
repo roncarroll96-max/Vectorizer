@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { EditorStore } from '../store';
 import { defaultStyle, makeRect, makeEllipse } from '../model/shapes';
 import { getShape } from '../model/doc';
-import { parsePathData } from '../model/path';
+import { nodeRef, parsePathData } from '../model/path';
+import { nodeTool } from '../tools/node';
+import type { PointerInfo } from '../tools/types';
 import type { PathShape } from '../model/types';
 import { shapeBounds } from '../model/geometry';
 
@@ -135,11 +137,12 @@ describe('editing actions', () => {
 
   it('deletes selected nodes, removing the path when too few remain', () => {
     store.pasteSvg('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 0L10 10L0 10Z"/></svg>');
-    store.set({ nodeSelection: ['0:1'] });
+    const id = store.activePath()!.id;
+    store.set({ nodeSelection: [nodeRef(id, 0, 1)] });
     store.deleteSelectedNodes();
     const p = store.activePath()!;
     expect(p.subpaths[0].nodes).toHaveLength(3);
-    store.set({ nodeSelection: ['0:0', '0:1'] });
+    store.set({ nodeSelection: [nodeRef(id, 0, 0), nodeRef(id, 0, 1)] });
     store.deleteSelectedNodes();
     expect(store.getState().doc.shapes).toHaveLength(0);
   });
@@ -194,5 +197,69 @@ describe('split and combine paths', () => {
     expect(store.selectionBounds()).toEqual(boundsBefore);
     store.splitPaths();
     expect(store.getState().doc.shapes).toHaveLength(2);
+  });
+});
+
+describe('node tool box selection', () => {
+  const sq = (id: string, x: number): PathShape => ({
+    id, name: id, type: 'path', transform: [1, 0, 0, 1, 0, 0],
+    style: defaultStyle(), subpaths: parsePathData(`M${x} 0H${x + 10}V10H${x}Z`),
+  });
+  const empty = document.createElement('div');
+  const ptr = (x: number, y: number, shift = false, target: Element = empty): PointerInfo =>
+    ({ doc: [x, y], screen: [x, y], shift, alt: false, mod: false, target });
+  const box = (x0: number, y0: number, x1: number, y1: number, shift = false, target?: Element) => {
+    const drag = nodeTool.down(ptr(x0, y0, shift, target), { store })!;
+    drag.move(ptr(x1, y1, shift, target));
+    drag.up(ptr(x1, y1, shift, target));
+  };
+
+  beforeEach(() => {
+    store.addShapes([sq('a', 0), sq('b', 20), sq('c', 40)]);
+    store.select([]);
+    store.setTool('node');
+  });
+
+  it('selects only the nodes inside the box, across separate paths', () => {
+    // covers the right edge of "a" and the left edge of "b", nothing of "c"
+    box(5, -1, 25, 11);
+    const st = store.getState();
+    expect(new Set(st.nodeSelection)).toEqual(new Set([
+      nodeRef('a', 0, 1), nodeRef('a', 0, 2), nodeRef('b', 0, 0), nodeRef('b', 0, 3),
+    ]));
+    expect(st.selection).toEqual(['a', 'b']);
+  });
+
+  it('starts a box even when the drag begins on top of a shape', () => {
+    const onShape = document.createElement('div');
+    onShape.setAttribute('data-id', 'c');
+    box(45, 5, 55, 15, false, onShape);
+    expect(new Set(store.getState().nodeSelection)).toEqual(new Set([nodeRef('c', 0, 2)]));
+  });
+
+  it('adds to the selection with Shift', () => {
+    box(-2, -2, 2, 2);
+    box(38, -2, 42, 2, true);
+    expect(store.getState().nodeSelection).toEqual([nodeRef('a', 0, 0), nodeRef('c', 0, 0)]);
+    expect(store.getState().selection).toEqual(['a', 'c']);
+  });
+
+  it('moves, nudges and deletes nodes on several paths at once', () => {
+    box(5, -1, 25, 11);
+    store.nudgeNodes(0, 5);
+    const node = (id: string, ni: number) => (getShape(store.getState().doc, id) as PathShape).subpaths[0].nodes[ni].p;
+    expect(node('a', 1)).toEqual([10, 5]);
+    expect(node('b', 0)).toEqual([20, 5]);
+    expect(node('a', 0)).toEqual([0, 0]); // unselected nodes stay
+    store.deleteSelectedNodes();
+    expect((getShape(store.getState().doc, 'a') as PathShape).subpaths[0].nodes).toHaveLength(2);
+    expect((getShape(store.getState().doc, 'b') as PathShape).subpaths[0].nodes).toHaveLength(2);
+  });
+
+  it('a plain click on a shape still picks it for editing', () => {
+    const onShape = document.createElement('div');
+    onShape.setAttribute('data-id', 'b');
+    nodeTool.down(ptr(25, 5, false, onShape), { store })!.up(ptr(25, 5, false, onShape));
+    expect(store.getState().selection).toEqual(['b']);
   });
 });

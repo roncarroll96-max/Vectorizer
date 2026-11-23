@@ -10,7 +10,7 @@ import { bake, cloneShape, emptyDoc, newId, toPath, transformShape, translateSha
 import { invert, mul, rotateAbout, scaleAbout, translate } from './model/matrix';
 import { importSvg } from './model/svgImport';
 import { exportSvg, shapesToSvg } from './model/svgExport';
-import { cloneSubpaths, deleteNodes, mapSubpaths, nodeKey, setNodeKind, splitSubpaths } from './model/path';
+import { cloneSubpaths, deleteNodes, mapSubpaths, nodeKey, refsByPath, setNodeKind, splitSubpaths } from './model/path';
 
 export type ToolId = 'select' | 'node' | 'pen' | 'rect' | 'ellipse' | 'line' | 'polygon' | 'text' | 'hand';
 
@@ -414,47 +414,63 @@ export class EditorStore {
 
   // ------------------------------------------------------------ nodes
 
-  /** The single selected path (node tool target). */
+  /** The single selected path, if exactly one path is selected. */
   activePath() {
     const [s] = this.selectedShapes();
     return this.state.selection.length === 1 && s?.type === 'path' ? s : null;
   }
 
+  /** Every selected path: the node tool shows and edits nodes on all of them. */
+  nodePaths(): PathShape[] {
+    return this.selectedShapes().filter((s): s is PathShape => s.type === 'path');
+  }
+
+  /** Applies `fn` to each path that has selected nodes, as one undo step. */
+  private editSelectedNodes(fn: (p: PathShape, keys: Set<string>) => SubPath[] | null, extra: Partial<EditorState> = {}, coalesce?: string) {
+    let doc = this.state.doc;
+    const removed: string[] = [];
+    for (const [id, keys] of refsByPath(this.state.nodeSelection)) {
+      const p = getShape(doc, id);
+      if (p?.type !== 'path') continue;
+      const subpaths = fn(p, keys);
+      if (!subpaths) continue;
+      if (!subpaths.length) { doc = removeShapes(doc, [id]); removed.push(id); continue; }
+      doc = updateShapes(doc, [id], (s) => ({ ...s, subpaths }) as Shape);
+    }
+    const selection = removed.length ? this.state.selection.filter((id) => !removed.includes(id)) : this.state.selection;
+    this.commit(doc, { selection, ...extra }, coalesce);
+  }
+
   deleteSelectedNodes() {
-    const p = this.activePath();
-    const { nodeSelection } = this.state;
-    if (!p || !nodeSelection.length) return;
-    const subpaths = deleteNodes(p.subpaths, new Set(nodeSelection));
-    if (!subpaths.length) { this.commit(removeShapes(this.state.doc, [p.id]), { selection: [], nodeSelection: [] }); return; }
-    this.commit(updateShapes(this.state.doc, [p.id], (s) => ({ ...s, subpaths }) as Shape), { nodeSelection: [] });
+    if (!this.state.nodeSelection.length) return;
+    this.editSelectedNodes((p, keys) => deleteNodes(p.subpaths, keys), { nodeSelection: [] });
   }
 
   setSelectedNodeKind(kind: PathNode['kind']) {
-    const p = this.activePath();
-    if (!p) return;
-    let subs = p.subpaths;
-    for (const key of this.state.nodeSelection) {
-      const [si, ni] = key.split(':').map(Number);
-      subs = setNodeKind(subs, si, ni, kind);
-    }
-    this.commit(updateShapes(this.state.doc, [p.id], (s) => ({ ...s, subpaths: subs }) as Shape));
+    this.editSelectedNodes((p, keys) => {
+      let subs = p.subpaths;
+      for (const key of keys) {
+        const [si, ni] = key.split(':').map(Number);
+        subs = setNodeKind(subs, si, ni, kind);
+      }
+      return subs;
+    });
   }
 
+  /** Moves the selected nodes (on every path) by a document-space offset. */
   nudgeNodes(dx: number, dy: number) {
-    const p = this.activePath();
-    if (!p) return;
-    const inv = invert(parentMatrix(this.state.doc, p.id));
-    const d: Vec = [inv[0] * dx + inv[2] * dy, inv[1] * dx + inv[3] * dy];
-    const sel = new Set(this.state.nodeSelection);
-    const subpaths = p.subpaths.map((s, si) => ({
-      ...s,
-      nodes: s.nodes.map((n, ni) => {
-        if (!sel.has(nodeKey(si, ni))) return n;
-        const mv = (v: Vec): Vec => [v[0] + d[0], v[1] + d[1]];
-        return { ...n, p: mv(n.p), ...(n.in ? { in: mv(n.in) } : {}), ...(n.out ? { out: mv(n.out) } : {}) };
-      }),
-    }));
-    this.commit(updateShapes(this.state.doc, [p.id], (s) => ({ ...s, subpaths }) as Shape), {}, 'nudge-nodes');
+    if (!this.state.nodeSelection.length) return;
+    const { doc } = this.state;
+    this.editSelectedNodes((p, keys) => {
+      const inv = invert(parentMatrix(doc, p.id));
+      const d: Vec = [inv[0] * dx + inv[2] * dy, inv[1] * dx + inv[3] * dy];
+      const mv = (v: Vec): Vec => [v[0] + d[0], v[1] + d[1]];
+      return p.subpaths.map((s, si) => ({
+        ...s,
+        nodes: s.nodes.map((n, ni) => (!keys.has(nodeKey(si, ni)) ? n
+          : { ...n, p: mv(n.p), ...(n.in ? { in: mv(n.in) } : {}), ...(n.out ? { out: mv(n.out) } : {}) })),
+      }));
+    }, {}, 'nudge-nodes');
   }
 
   // ------------------------------------------------------------ clipboard

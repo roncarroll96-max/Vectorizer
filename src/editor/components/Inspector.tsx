@@ -1,6 +1,7 @@
 import { editorStore, useEditor } from '../store';
 import type { Shape, Style } from '../model/types';
 import { documentColors, getShape, parentMatrix } from '../model/doc';
+import { parseNodeRef } from '../model/path';
 import { rotationOf } from '../model/matrix';
 import { TYPE_LABEL } from '../model/shapes';
 import { ColorField, IconButton, NumField, PanelSection } from './Fields';
@@ -91,18 +92,22 @@ function DocumentPanel() {
 
 function NodePanel() {
   const nodeSelection = useEditor((s) => s.nodeSelection);
-  useEditor((s) => s.doc);
-  const path = editorStore.activePath();
-  if (!path) return null;
-  const nodes = nodeSelection.map((k) => { const [si, ni] = k.split(':').map(Number); return path.subpaths[si]?.nodes[ni]; }).filter(Boolean);
+  const doc = useEditor((s) => s.doc);
+  useEditor((s) => s.selection);
+  if (!editorStore.nodePaths().length) return null;
+  const picked = nodeSelection.map((r) => {
+    const { id, si, ni } = parseNodeRef(r);
+    const p = getShape(doc, id);
+    return p?.type === 'path' ? { id, node: p.subpaths[si]?.nodes[ni] } : null;
+  }).filter((x): x is { id: string; node: NonNullable<typeof x>['node'] } => !!x?.node);
+  const nodes = picked.map((x) => x.node);
   const kinds = new Set(nodes.map((n) => n.kind));
   const kind = kinds.size === 1 ? [...kinds][0] : null;
   const single = nodes.length === 1 ? nodes[0] : null;
-  const pm = parentMatrix(editorStore.getState().doc, path.id);
-  const isPlain = pm.every((v, i) => v === [1, 0, 0, 1, 0, 0][i]);
+  const isPlain = single ? parentMatrix(doc, picked[0].id).every((v, i) => v === [1, 0, 0, 1, 0, 0][i]) : false;
   return (
     <PanelSection title={nodes.length ? `${nodes.length} node${nodes.length > 1 ? 's' : ''}` : 'Nodes'}>
-      {!nodes.length && <p className="ed-hint">Click a node to select it, drag to move. Double-click the path to add a node, double-click a node to toggle smooth/corner. Alt-drag a handle to break it.</p>}
+      {!nodes.length && <p className="ed-hint">Click a node to select it, drag to move. Drag a box to select every node inside it, on any path (Shift adds). Double-click the path to add a node, double-click a node to toggle smooth/corner. Alt-drag a handle to break it.</p>}
       {nodes.length > 0 && (
         <>
           <div className="ed-seg" role="radiogroup" aria-label="Node type">

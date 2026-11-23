@@ -3,7 +3,7 @@ import { useEditor, editorStore } from '../store';
 import { getShape, parentMatrix } from '../model/doc';
 import { shapeBounds } from '../model/geometry';
 import { apply, mul } from '../model/matrix';
-import { mapSubpaths, nodeKey, serializePath } from '../model/path';
+import { mapSubpaths, nodeRef, serializePath } from '../model/path';
 import { handlePositions } from '../tools/select';
 
 const HANDLE = 8;
@@ -14,8 +14,9 @@ function BoxOutline({ box, toScreen, className }: { box: Box; toScreen: (p: Vec)
   return <rect className={className} x={x0} y={y0} width={Math.max(0, x1 - x0)} height={Math.max(0, y1 - y0)} />;
 }
 
-function NodeOverlay({ subs, m, selected }: { subs: SubPath[]; m: Mat; selected: Set<string> }) {
+function NodeOverlay({ id, subs, m, selected }: { id: string; subs: SubPath[]; m: Mat; selected: Set<string> }) {
   const screen = mapSubpaths(subs, m);
+  const nodeKey = (si: number, ni: number) => nodeRef(id, si, ni);
   const handles: JSX.Element[] = [];
   const anchors: JSX.Element[] = [];
   screen.forEach((s, si) => {
@@ -96,7 +97,8 @@ export function Overlay({ width, height }: { width: number; height: number }) {
   const scopeBox = scopeShape ? shapeBounds(scopeShape, parentMatrix(doc, scope!)) : null;
   const hover = ui.hoverId && !selection.includes(ui.hoverId) && tool === 'select' ? getShape(doc, ui.hoverId) : null;
   const hoverBox = hover ? shapeBounds(hover, parentMatrix(doc, hover.id)) : null;
-  const active = tool === 'node' ? editorStore.activePath() : null;
+  const nodePaths = tool === 'node' ? editorStore.nodePaths() : [];
+  const selectedNodes = new Set(nodeSelection);
   const showHandles = tool === 'select' && union && !ui.editingText;
 
   return (
@@ -104,7 +106,10 @@ export function Overlay({ width, height }: { width: number; height: number }) {
       {scopeBox && <BoxOutline box={scopeBox} toScreen={toScreen} className="ed-scope" />}
       {hoverBox && <BoxOutline box={hoverBox} toScreen={toScreen} className="ed-hover" />}
       {tool !== 'node' && selection.length > 1 && selBoxes.map((b, i) => b && <BoxOutline key={i} box={b} toScreen={toScreen} className="ed-sel-item" />)}
-      {tool === 'node' && selection.length === 1 && !active && selBoxes[0] && <BoxOutline box={selBoxes[0]} toScreen={toScreen} className="ed-sel-item" />}
+      {tool === 'node' && selection.map((id, i) => {
+        const b = selBoxes[i];
+        return b && !nodePaths.some((p) => p.id === id) ? <BoxOutline key={id} box={b} toScreen={toScreen} className="ed-sel-item" /> : null;
+      })}
       {showHandles && union && (
         <g>
           <BoxOutline box={union} toScreen={toScreen} className="ed-sel" />
@@ -118,7 +123,7 @@ export function Overlay({ width, height }: { width: number; height: number }) {
             : <rect key={h.id} className={`ed-handle ed-handle-${h.id}`} x={h.p[0] - HANDLE / 2} y={h.p[1] - HANDLE / 2} width={HANDLE} height={HANDLE} data-handle={h.id} />))}
         </g>
       )}
-      {active && <NodeOverlay subs={active.subpaths} m={mul(V, parentMatrix(doc, active.id))} selected={new Set(nodeSelection)} />}
+      {nodePaths.map((p) => <NodeOverlay key={p.id} id={p.id} subs={p.subpaths} m={mul(V, parentMatrix(doc, p.id))} selected={selectedNodes} />)}
       {ui.pen && <PenOverlay nodes={ui.pen} pointer={ui.pointer} toScreen={toScreen} />}
       {ui.marquee && <BoxOutline box={ui.marquee} toScreen={toScreen} className="ed-marquee" />}
       {ui.guides.map((g, i) => {
