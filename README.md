@@ -16,7 +16,7 @@ The app has two tabs: **Trace** (image → SVG) and **Edit** (SVG editor). *Open
 ## The SVG editor (Edit tab)
 
 - **Tools:** select (move, resize, rotate), node editing, pen (click for corners, drag for curves), rectangle, ellipse, line, polygon, text, hand.
-- **Node editing:** drag anchors and Bézier handles, marquee-select nodes, double-click the path to add a node, double-click a node to switch between corner and smooth, Alt-drag a handle to break it, Delete removes nodes. Rectangles, ellipses and lines become paths automatically when you start editing their nodes.
+- **Node editing:** drag anchors and Bézier handles, drag a box to select every node inside it on any path (Shift adds to the selection; selected nodes on several paths move, nudge and delete together), double-click the path to add a node, double-click a node to switch between corner and smooth, Alt-drag a handle to break it, Delete removes nodes. Rectangles, ellipses and lines become paths automatically when you start editing their nodes.
 - **Snapping and guides:** moving, resizing and drawing snap to other objects' edges and centres and to the canvas, with pink guide lines. Hold Ctrl/⌘ to skip snapping, or turn it off in the toolbar.
 - **Styling:** fill, stroke, stroke width, opacity, caps and joins, even-odd fill, corner radius, and text font, size, weight and alignment. Swatches show the document's own colors: click sets the fill, Shift+click sets the stroke.
 - **Layers:** a tree of every object (front first). Hide, lock, rename, drag to reorder, or drop onto a group. Double-click a group on the canvas to edit inside it.

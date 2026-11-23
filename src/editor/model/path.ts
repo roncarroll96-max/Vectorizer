@@ -362,6 +362,27 @@ export function splitSegment(subs: SubPath[], si: number, segIndex: number, t: n
 
 export const nodeKey = (si: number, ni: number) => `${si}:${ni}`;
 
+/** A node anywhere in the document: `<pathId>/<subpath>:<node>`. */
+export const nodeRef = (pathId: string, si: number, ni: number) => `${pathId}/${si}:${ni}`;
+
+export function parseNodeRef(ref: string): { id: string; si: number; ni: number; key: string } {
+  const slash = ref.lastIndexOf('/');
+  const key = ref.slice(slash + 1);
+  const [si, ni] = key.split(':').map(Number);
+  return { id: ref.slice(0, slash), si, ni, key };
+}
+
+/** Groups node refs by path: path id → set of per-path node keys (`si:ni`). */
+export function refsByPath(refs: Iterable<string>): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const r of refs) {
+    const { id, key } = parseNodeRef(r);
+    if (!out.has(id)) out.set(id, new Set());
+    out.get(id)!.add(key);
+  }
+  return out;
+}
+
 /** Removes the given nodes; subpaths left with fewer than two nodes disappear. */
 export function deleteNodes(subs: SubPath[], keys: Set<string>): SubPath[] {
   return cloneSubpaths(subs)
